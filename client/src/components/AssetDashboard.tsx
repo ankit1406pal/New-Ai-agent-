@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Eye, Download, PackageOpen, Trash2, Pencil, FileDown, FileUp, AlertTriangle } from "lucide-react";
+import { Search, Eye, Download, PackageOpen, Trash2, Pencil, FileDown, AlertTriangle } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import type { InsertAsset } from "@shared/schema";
 
@@ -26,7 +26,6 @@ interface AssetDashboardProps {
   onEditAsset?: (asset: AssetWithId) => void;
   onDeleteAsset?: (asset: AssetWithId) => void;
   onExportExcel?: () => void;
-  onImportExcel?: (file: File) => void;
 }
 
 export default function AssetDashboard({ 
@@ -35,8 +34,7 @@ export default function AssetDashboard({
   onDownloadQR, 
   onEditAsset, 
   onDeleteAsset,
-  onExportExcel,
-  onImportExcel
+  onExportExcel
 }: AssetDashboardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -92,14 +90,6 @@ export default function AssetDashboard({
 
   const statusOptions = ["All", "Pending", "Approved", "In Process", "Completed"];
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && onImportExcel) {
-      onImportExcel(file);
-      e.target.value = ''; // Reset input
-    }
-  };
-
   const totalDuplicates = assets.filter(asset => getDuplicateFields(asset).length > 0).length;
 
   return (
@@ -127,27 +117,6 @@ export default function AssetDashboard({
                 <FileDown className="h-4 w-4 mr-2" />
                 Export Excel
               </Button>
-            )}
-            {onImportExcel && (
-              <label>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  data-testid="input-import-excel"
-                />
-                <Button
-                  variant="outline"
-                  asChild
-                  data-testid="button-import-excel"
-                >
-                  <span>
-                    <FileUp className="h-4 w-4 mr-2" />
-                    Import Excel
-                  </span>
-                </Button>
-              </label>
             )}
           </div>
         </div>

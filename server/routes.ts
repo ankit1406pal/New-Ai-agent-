@@ -126,13 +126,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Export assets to Excel
+  // Export assets to Excel with full audit log
   app.get("/api/assets/export/excel", async (_req, res) => {
     try {
-      const assets = await storage.getAssets();
+      // Get ALL assets including deleted ones for full audit trail
+      const allAssets = await storage.getAllAssets();
       
-      // Transform assets for Excel
-      const excelData = assets.map(asset => ({
+      // Transform assets for Excel with audit information
+      const excelData = allAssets.map(asset => ({
         'ID': asset.id,
         'PC Name': asset.pcName,
         'Employee Number': asset.employeeNumber,
@@ -142,6 +143,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Buyback Status': asset.buybackStatus,
         'Date': asset.date.toISOString().split('T')[0],
         'Created At': asset.createdAt.toISOString(),
+        'Updated At': asset.updatedAt.toISOString(),
+        'Status of Entries & Assets': asset.statusLog,
       }));
 
       // Create workbook and worksheet
@@ -160,14 +163,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { wch: 15 }, // Buyback Status
         { wch: 12 }, // Date
         { wch: 20 }, // Created At
+        { wch: 20 }, // Updated At
+        { wch: 25 }, // Status of Entries & Assets
       ];
 
+      // Apply red formatting to deleted entries
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        const statusCell = XLSX.utils.encode_cell({ r: R, c: 10 }); // Column K (Status of Entries & Assets)
+        if (ws[statusCell] && ws[statusCell].v === 'Deleted') {
+          // Apply red font color to the entire row
+          for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+            if (!ws[cellAddress]) continue;
+            if (!ws[cellAddress].s) ws[cellAddress].s = {};
+            ws[cellAddress].s.font = { color: { rgb: "FF0000" } };
+          }
+        }
+      }
+
       // Generate buffer
-      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', cellStyles: true });
 
       // Set headers for download
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename=assets-${new Date().toISOString().split('T')[0]}.xlsx`);
+      res.setHeader('Content-Disposition', `attachment; filename=assets-audit-${new Date().toISOString().split('T')[0]}.xlsx`);
       
       res.send(buffer);
     } catch (error) {

@@ -13,11 +13,17 @@ export const assets = pgTable("assets", {
   buybackStatus: text("buyback_status").notNull(),
   date: timestamp("date").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  isDeleted: text("is_deleted").default("false").notNull(),
+  statusLog: text("status_log").default("Created").notNull(),
 });
 
 export const insertAssetSchema = createInsertSchema(assets).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
+  isDeleted: true,
+  statusLog: true,
 }).extend({
   pcName: z.string().min(1, "PC name is required"),
   employeeNumber: z.string().min(1, "Employee number is required"),

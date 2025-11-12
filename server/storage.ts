@@ -4,6 +4,7 @@ import { eq, or } from "drizzle-orm";
 
 export interface IStorage {
   getAssets(): Promise<Asset[]>;
+  getAllAssets(): Promise<Asset[]>;
   getAsset(id: string): Promise<Asset | undefined>;
   createAsset(asset: InsertAsset): Promise<Asset>;
   updateAsset(id: string, asset: InsertAsset): Promise<Asset | undefined>;
@@ -17,7 +18,13 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // Get only non-deleted assets (for dashboard view)
   async getAssets(): Promise<Asset[]> {
+    return await db.select().from(assets).where(eq(assets.isDeleted, "false"));
+  }
+
+  // Get all assets including deleted ones (for Excel export)
+  async getAllAssets(): Promise<Asset[]> {
     return await db.select().from(assets);
   }
 
@@ -37,7 +44,11 @@ export class DatabaseStorage implements IStorage {
   async updateAsset(id: string, insertAsset: InsertAsset): Promise<Asset | undefined> {
     const [updatedAsset] = await db
       .update(assets)
-      .set(insertAsset)
+      .set({ 
+        ...insertAsset,
+        updatedAt: new Date(),
+        statusLog: "Updated"
+      })
       .where(eq(assets.id, id))
       .returning();
     return updatedAsset || undefined;
@@ -46,14 +57,27 @@ export class DatabaseStorage implements IStorage {
   async updateAssetStatus(id: string, status: string): Promise<Asset | undefined> {
     const [updatedAsset] = await db
       .update(assets)
-      .set({ buybackStatus: status })
+      .set({ 
+        buybackStatus: status,
+        updatedAt: new Date(),
+        statusLog: "Updated"
+      })
       .where(eq(assets.id, id))
       .returning();
     return updatedAsset || undefined;
   }
 
+  // Soft delete: mark as deleted instead of removing from database
   async deleteAsset(id: string): Promise<boolean> {
-    const result = await db.delete(assets).where(eq(assets.id, id)).returning();
+    const result = await db
+      .update(assets)
+      .set({ 
+        isDeleted: "true",
+        statusLog: "Deleted",
+        updatedAt: new Date()
+      })
+      .where(eq(assets.id, id))
+      .returning();
     return result.length > 0;
   }
 

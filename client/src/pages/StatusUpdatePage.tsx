@@ -1,16 +1,7 @@
-import { useState } from "react";
 import { useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { CheckCircle2, Loader2, AlertCircle, QrCode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/StatusBadge";
@@ -20,7 +11,6 @@ import type { Asset } from "@shared/schema";
 export default function StatusUpdatePage() {
   const [, params] = useRoute("/status/:id");
   const assetId = params?.id;
-  const [newStatus, setNewStatus] = useState<string>("");
   const { toast } = useToast();
 
   // Fetch asset data
@@ -29,19 +19,18 @@ export default function StatusUpdatePage() {
     enabled: !!assetId,
   });
 
-  // Update status mutation
+  // Update status mutation - only allows Approved -> Completed
   const updateStatusMutation = useMutation({
-    mutationFn: async (status: string) => {
-      return await apiRequest('PATCH', `/api/assets/${assetId}/status`, { status });
+    mutationFn: async () => {
+      return await apiRequest('PATCH', `/api/assets/${assetId}/status`, { status: "Completed" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/assets/${assetId}`] });
       queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
       toast({
         title: "Status Updated",
-        description: "Asset buyback status has been successfully updated.",
+        description: "Asset has been marked as Completed.",
       });
-      setNewStatus("");
     },
     onError: () => {
       toast({
@@ -53,10 +42,10 @@ export default function StatusUpdatePage() {
   });
 
   const handleUpdateStatus = () => {
-    if (newStatus) {
-      updateStatusMutation.mutate(newStatus);
-    }
+    updateStatusMutation.mutate();
   };
+
+  const canUpdateToCompleted = asset?.buybackStatus === "Approved";
 
   if (isLoading) {
     return (
@@ -137,39 +126,40 @@ export default function StatusUpdatePage() {
               <StatusBadge status={asset.buybackStatus as "Pending" | "Approved" | "In Process" | "Completed"} />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="status-select">Update Status</Label>
-              <Select value={newStatus} onValueChange={setNewStatus} data-testid="select-new-status">
-                <SelectTrigger id="status-select" data-testid="trigger-new-status">
-                  <SelectValue placeholder="Select new status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="Approved">Approved</SelectItem>
-                  <SelectItem value="In Process">In Process</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {!canUpdateToCompleted && asset.buybackStatus !== "Completed" && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+                <AlertCircle className="inline h-4 w-4 mr-2" />
+                This asset must have "Approved" status before it can be marked as Completed.
+              </div>
+            )}
 
-            <Button
-              onClick={handleUpdateStatus}
-              disabled={!newStatus || newStatus === asset.buybackStatus || updateStatusMutation.isPending}
-              className="w-full"
-              data-testid="button-update-status"
-            >
-              {updateStatusMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Update Status
-                </>
-              )}
-            </Button>
+            {asset.buybackStatus === "Completed" && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-md text-sm text-green-800">
+                <CheckCircle2 className="inline h-4 w-4 mr-2" />
+                This asset has already been completed.
+              </div>
+            )}
+
+            {canUpdateToCompleted && (
+              <Button
+                onClick={handleUpdateStatus}
+                disabled={updateStatusMutation.isPending}
+                className="w-full"
+                data-testid="button-update-status"
+              >
+                {updateStatusMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Mark as Completed
+                  </>
+                )}
+              </Button>
+            )}
           </div>
 
           {updateStatusMutation.isSuccess && (
